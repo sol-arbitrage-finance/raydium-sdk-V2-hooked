@@ -173,11 +173,11 @@ export class Raydium {
       api,
     });
 
-    await raydium.fetchAvailabilityStatus(config.disableFeatureCheck ?? true);
-    if (!config.disableLoadToken)
-      await raydium.token.load({
-        type: config.jupTokenType,
-      });
+    // await raydium.fetchAvailabilityStatus(config.disableFeatureCheck ?? true);
+    // if (!config.disableLoadToken)
+    //   await raydium.token.load({
+    //     type: config.jupTokenType,
+    //   });
 
     return raydium;
   }
