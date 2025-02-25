@@ -1,29 +1,28 @@
-import { Connection, Keypair, PublicKey, EpochInfo, Commitment } from "@solana/web3.js";
+import { Commitment, Connection, EpochInfo, Keypair, PublicKey } from "@solana/web3.js";
 import { merge } from "lodash";
 
-import { Api, API_URL_CONFIG, ApiV3TokenRes, ApiV3Token, JupTokenType, AvailabilityCheckAPI3 } from "../api";
+import { Api, API_URL_CONFIG, ApiV3Token, ApiV3TokenRes, AvailabilityCheckAPI3, JupTokenType } from "../api";
 import { EMPTY_CONNECTION, EMPTY_OWNER } from "../common/error";
 import { createLogger, Logger } from "../common/logger";
 import { Owner } from "../common/owner";
 import { Cluster } from "../solana";
 
 import Account, { TokenAccountDataProp } from "./account/account";
-import Farm from "./farm/farm";
-import Liquidity from "./liquidity/liquidity";
 import { Clmm } from "./clmm";
 import Cpmm from "./cpmm/cpmm";
-import TradeV2 from "./tradeV2/trade";
-import Utils1216 from "./utils1216";
-import MarketV2 from "./marketV2";
+import Farm from "./farm/farm";
 import Ido from "./ido";
-
+import Liquidity from "./liquidity/liquidity";
+import MarketV2 from "./marketV2";
 import TokenModule from "./token/token";
+import TradeV2 from "./tradeV2/trade";
 import { SignAllTransactions } from "./type";
+import Utils1216 from "./utils1216";
 
 export interface RaydiumLoadParams extends TokenAccountDataProp, Omit<RaydiumApiBatchRequestParams, "api"> {
   /* ================= solana ================= */
   // solana web3 connection
-  connection: Connection;
+  connection?: Connection;
   // solana cluster/network/env
   cluster?: Cluster;
   // user public key

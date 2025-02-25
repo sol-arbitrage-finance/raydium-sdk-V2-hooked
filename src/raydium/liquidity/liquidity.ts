@@ -1,61 +1,43 @@
-import { PublicKey, TransactionInstruction } from "@solana/web3.js";
-import {
-  AmmV4Keys,
-  AmmV5Keys,
-  ApiV3PoolInfoConcentratedItem,
-  ApiV3PoolInfoStandardItem,
-  FormatFarmInfoOutV6,
-} from "../../api/type";
 import { AccountLayout, NATIVE_MINT, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { AccountInfo, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import BN from "bn.js";
+import Decimal from "decimal.js";
+
+import { AMM_V4, FEE_DESTINATION_ID, OPEN_BOOK_PROGRAM, WSOLMint } from "@/common";
 import { getMultipleAccountsInfoWithCustomFlags } from "@/common/accountInfo";
 import { BN_ZERO, divCeil } from "@/common/bignumber";
 import { getATAAddress } from "@/common/pda";
 import { BNDivCeil } from "@/common/transfer";
 import { MakeMultiTxData, MakeTxData } from "@/common/txTool/txTool";
 import { InstructionType, TxVersion } from "@/common/txTool/txType";
+
+import {
+  AmmV4Keys, AmmV5Keys, ApiV3PoolInfoConcentratedItem, ApiV3PoolInfoStandardItem, FormatFarmInfoOutV6,
+} from "../../api/type";
 import { Percent, Token, TokenAmount } from "../../module";
 import {
-  FARM_PROGRAM_TO_VERSION,
-  FarmLedger,
-  createAssociatedLedgerAccountInstruction,
-  getAssociatedLedgerAccount,
-  getFarmLedgerLayout,
-  makeWithdrawInstructionV3,
-  makeWithdrawInstructionV5,
-  makeWithdrawInstructionV6,
+  createAssociatedLedgerAccountInstruction, FARM_PROGRAM_TO_VERSION, FarmLedger, getAssociatedLedgerAccount,
+  getFarmLedgerLayout, makeWithdrawInstructionV3, makeWithdrawInstructionV5, makeWithdrawInstructionV6,
 } from "../../raydium/farm";
+import { generatePubKey } from "../account";
+import Account from "../account/account";
 import { ClmmInstrument } from "../clmm/instrument";
+import { makeCreateMarketInstruction, MarketExtInfo } from "../marketV2";
 import ModuleBase, { ModuleBaseProps } from "../moduleBase";
 import { toToken } from "../token";
 import { ComputeBudgetConfig } from "../type";
+
 import { LIQUIDITY_FEES_DENOMINATOR, LIQUIDITY_FEES_NUMERATOR } from "./constant";
 import {
-  createPoolV4InstructionV2,
-  makeAMMSwapInstruction,
-  makeAddLiquidityInstruction,
-  removeLiquidityInstruction,
+  createPoolV4InstructionV2, makeAddLiquidityInstruction, makeAMMSwapInstruction, removeLiquidityInstruction,
 } from "./instruction";
 import { createPoolFeeLayout, liquidityStateV4Layout } from "./layout";
-import { StableLayout, getDxByDyBaseIn, getDyByDxBaseIn, getStablePrice } from "./stable";
+import { getDxByDyBaseIn, getDyByDxBaseIn, getStablePrice, StableLayout } from "./stable";
 import {
-  AddLiquidityParams,
-  AmmRpcData,
-  AmountSide,
-  ComputeAmountInParam,
-  ComputeAmountOutParam,
-  CreatePoolAddress,
-  CreatePoolParam,
-  CreateMarketAndPoolParam,
-  RemoveParams,
-  SwapParam,
+  AddLiquidityParams, AmmRpcData, AmountSide, ComputeAmountInParam, ComputeAmountOutParam, CreateMarketAndPoolParam,
+  CreatePoolAddress, CreatePoolParam, RemoveParams, SwapParam,
 } from "./type";
 import { getAssociatedConfigId, getAssociatedPoolKeys, toAmmComputePoolInfo } from "./utils";
-
-import BN from "bn.js";
-import Decimal from "decimal.js";
-import { AMM_V4, FEE_DESTINATION_ID, OPEN_BOOK_PROGRAM, WSOLMint } from "@/common";
-import { generatePubKey } from "../account";
-import { makeCreateMarketInstruction, MarketExtInfo } from "../marketV2";
 
 export default class LiquidityModule extends ModuleBase {
   public stableLayout: StableLayout;
@@ -457,8 +439,8 @@ export default class LiquidityModule extends ModuleBase {
 
         createInfo: mintBaseUseSOLBalance
           ? {
-            payer: this.scope.ownerPubKey,
-          }
+              payer: this.scope.ownerPubKey,
+            }
           : undefined,
         skipCloseAccount: !mintBaseUseSOLBalance,
         notUseTokenAccount: mintBaseUseSOLBalance,
@@ -475,9 +457,9 @@ export default class LiquidityModule extends ModuleBase {
         owner: this.scope.ownerPubKey,
         createInfo: mintQuoteUseSOLBalance
           ? {
-            payer: this.scope.ownerPubKey!,
-            amount: 0,
-          }
+              payer: this.scope.ownerPubKey!,
+              amount: 0,
+            }
           : undefined,
         skipCloseAccount: !mintQuoteUseSOLBalance,
         notUseTokenAccount: mintQuoteUseSOLBalance,
@@ -552,8 +534,8 @@ export default class LiquidityModule extends ModuleBase {
         version === 6
           ? makeWithdrawInstructionV6(insParams)
           : version === 5
-            ? makeWithdrawInstructionV5(insParams)
-            : makeWithdrawInstructionV3(insParams);
+          ? makeWithdrawInstructionV5(insParams)
+          : makeWithdrawInstructionV3(insParams);
       const insType = {
         3: InstructionType.FarmV3Withdraw,
         5: InstructionType.FarmV5Withdraw,
@@ -655,9 +637,9 @@ export default class LiquidityModule extends ModuleBase {
         owner: this.scope.ownerPubKey,
         createInfo: mintAUseSOLBalance
           ? {
-            payer: payer!,
-            amount: baseAmount,
-          }
+              payer: payer!,
+              amount: baseAmount,
+            }
           : undefined,
         notUseTokenAccount: mintAUseSOLBalance,
         skipCloseAccount: !mintAUseSOLBalance,
@@ -672,9 +654,9 @@ export default class LiquidityModule extends ModuleBase {
         owner: this.scope.ownerPubKey,
         createInfo: mintBUseSOLBalance
           ? {
-            payer: payer!,
-            amount: quoteAmount,
-          }
+              payer: payer!,
+              amount: quoteAmount,
+            }
           : undefined,
 
         notUseTokenAccount: mintBUseSOLBalance,
@@ -890,9 +872,9 @@ export default class LiquidityModule extends ModuleBase {
         owner: this.scope.ownerPubKey,
         createInfo: mintAUseSOLBalance
           ? {
-            payer: payer!,
-            amount: baseAmount,
-          }
+              payer: payer!,
+              amount: baseAmount,
+            }
           : undefined,
         notUseTokenAccount: mintAUseSOLBalance,
         skipCloseAccount: !mintAUseSOLBalance,
@@ -909,9 +891,9 @@ export default class LiquidityModule extends ModuleBase {
         owner: this.scope.ownerPubKey,
         createInfo: mintBUseSOLBalance
           ? {
-            payer: payer!,
-            amount: quoteAmount,
-          }
+              payer: payer!,
+              amount: quoteAmount,
+            }
           : undefined,
 
         notUseTokenAccount: mintBUseSOLBalance,
@@ -978,8 +960,8 @@ export default class LiquidityModule extends ModuleBase {
     const splitIns =
       mintAUseSOLBalance || mintBUseSOLBalance
         ? ([
-          ownerTokenAccountBaseInstruction?.instructions?.[0] || ownerTokenAccountQuoteInstruction?.instructions?.[0],
-        ].filter((i) => !!i) as TransactionInstruction[])
+            ownerTokenAccountBaseInstruction?.instructions?.[0] || ownerTokenAccountQuoteInstruction?.instructions?.[0],
+          ].filter((i) => !!i) as TransactionInstruction[])
         : undefined;
 
     if (txVersion === TxVersion.V0)
@@ -1187,7 +1169,8 @@ export default class LiquidityModule extends ModuleBase {
     );
     this.logDebug(
       "currentPrice invert:",
-      `1 ${tokenOut.symbol || tokenOut.address} ≈ ${new Decimal(1).div(currentPrice).toString()} ${tokenIn.symbol || tokenIn.address
+      `1 ${tokenOut.symbol || tokenOut.address} ≈ ${new Decimal(1).div(currentPrice).toString()} ${
+        tokenIn.symbol || tokenIn.address
       }`,
     );
 
@@ -1289,9 +1272,9 @@ export default class LiquidityModule extends ModuleBase {
 
         createInfo: inputTokenUseSolBalance
           ? {
-            payer: this.scope.ownerPubKey,
-            amount: amountIn,
-          }
+              payer: this.scope.ownerPubKey,
+              amount: amountIn,
+            }
           : undefined,
         skipCloseAccount: !inputTokenUseSolBalance,
         notUseTokenAccount: inputTokenUseSolBalance,
@@ -1360,6 +1343,71 @@ export default class LiquidityModule extends ModuleBase {
 
   public async getRpcPoolInfo(poolId: string): Promise<AmmRpcData> {
     return (await this.getRpcPoolInfos([poolId]))[poolId];
+  }
+
+  /* This function use already available account data to build poolInfo */
+  public async getPoolInfoFromAccountsData({
+    poolId,
+    poolAccountData,
+    baseVaultId,
+    baseVaultAccountData,
+    quoteVaultId,
+    quoteVaultAccountData,
+  }: {
+    poolId: string;
+    poolAccountData: AccountInfo<Buffer>;
+    baseVaultId: string;
+    baseVaultAccountData: AccountInfo<Buffer>;
+    quoteVaultId: string;
+    quoteVaultAccountData: AccountInfo<Buffer>;
+  }): Promise<{
+    poolRpcData: AmmRpcData;
+    poolInfo: ComputeAmountOutParam["poolInfo"];
+    poolKeys: AmmV4Keys | AmmV5Keys;
+  }> {
+    const poolInfos: { [poolId: string]: ReturnType<typeof liquidityStateV4Layout.decode> & { programId: PublicKey } } =
+      {};
+
+    const rpc = liquidityStateV4Layout.decode(poolAccountData.data);
+    poolInfos[poolId] = {
+      ...rpc,
+      programId: poolAccountData.owner,
+    };
+
+    const vaultInfo: { [vaultId: string]: BN } = {};
+    vaultInfo[baseVaultId] = new BN(AccountLayout.decode(baseVaultAccountData.data).amount.toString());
+    vaultInfo[quoteVaultId] = new BN(AccountLayout.decode(quoteVaultAccountData.data).amount.toString());
+
+    const returnData: { [poolId: string]: AmmRpcData } = {};
+
+    for (const [id, info] of Object.entries(poolInfos)) {
+      const baseReserve = vaultInfo[info.baseVault.toString()].sub(info.baseNeedTakePnl);
+      const quoteReserve = vaultInfo[info.quoteVault.toString()].sub(info.quoteNeedTakePnl);
+      returnData[id] = {
+        ...info,
+        baseReserve,
+        mintAAmount: vaultInfo[info.baseVault.toString()],
+        mintBAmount: vaultInfo[info.quoteVault.toString()],
+        quoteReserve,
+        poolPrice: new Decimal(quoteReserve.toString())
+          .div(new Decimal(10).pow(info.quoteDecimal.toString()))
+          .div(new Decimal(baseReserve.toString()).div(new Decimal(10).pow(info.baseDecimal.toString()))),
+      };
+    }
+
+    const computeData = toAmmComputePoolInfo(returnData);
+    const poolInfo = computeData[poolId];
+
+    const allKeys = await this.scope.tradeV2.computePoolToPoolKeys({
+      pools: [poolInfo],
+      ammRpcData: returnData,
+    });
+
+    return {
+      poolRpcData: returnData[poolId],
+      poolInfo,
+      poolKeys: allKeys[0] as AmmV4Keys | AmmV5Keys,
+    };
   }
 
   public async getRpcPoolInfos(

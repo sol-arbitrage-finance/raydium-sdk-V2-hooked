@@ -1,4 +1,5 @@
-import { Connection, clusterApiUrl } from "@solana/web3.js";
+import { clusterApiUrl, Connection } from "@solana/web3.js";
+
 import { Raydium } from "../src/index";
 
 async function init() {
