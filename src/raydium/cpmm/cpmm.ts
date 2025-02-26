@@ -305,7 +305,7 @@ export default class CpmmModule extends ModuleBase {
     poolInfo: ApiV3PoolInfoStandardItemCpmm;
     poolKeys: CpmmKeys;
     rpcData: CpmmRpcData;
-    computeData: CpmmComputeData; // Aggiunta di computeData
+    computeData: CpmmComputeData;
   }> {
     // Decode pool data from account
     const rpc = CpmmPoolInfoLayout.decode(poolAccountData.data);
@@ -329,6 +329,24 @@ export default class CpmmModule extends ModuleBase {
     const mintBData = unpackMint(new PublicKey(mintBId), mintBAccountData, mintBAccountData.owner);
     const mintLpData = unpackMint(new PublicKey(mintLpId), mintLpAccountData, mintLpAccountData.owner);
 
+    // Create fake mint infos structure (similar to fetchMultipleMintInfos)
+    const mintInfos: ReturnTypeFetchMultipleMintInfos = {};
+    mintInfos[mintAId] = {
+      ...mintAData,
+      programId: mintAAccountData.owner,
+      feeConfig: getTransferFeeConfig(mintAData) ?? undefined,
+    };
+    mintInfos[mintBId] = {
+      ...mintBData,
+      programId: mintBAccountData.owner,
+      feeConfig: getTransferFeeConfig(mintBData) ?? undefined,
+    };
+
+    // Add default key mapping to match original implementation
+    if (mintAId === WSOLMint.toBase58() || mintBId === WSOLMint.toBase58()) {
+      mintInfos[PublicKey.default.toBase58()] = mintInfos[WSOLMint.toBase58()];
+    }
+
     // Calculate pool price
     const poolPrice = new Decimal(quoteReserve.toString())
       .div(new Decimal(10).pow(poolData.mintDecimalB))
@@ -351,7 +369,7 @@ export default class CpmmModule extends ModuleBase {
       decimals: poolData.mintDecimalA,
       programId: mintAAccountData.owner.toBase58(),
       extensions: {
-        feeConfig: getTransferFeeConfig(mintAData) ? toFeeConfig(getTransferFeeConfig(mintAData)) : undefined,
+        feeConfig: mintInfos[mintAId].feeConfig ? toFeeConfig(mintInfos[mintAId].feeConfig) : undefined,
       },
     });
 
@@ -360,7 +378,7 @@ export default class CpmmModule extends ModuleBase {
       decimals: poolData.mintDecimalB,
       programId: mintBAccountData.owner.toBase58(),
       extensions: {
-        feeConfig: getTransferFeeConfig(mintBData) ? toFeeConfig(getTransferFeeConfig(mintBData)) : undefined,
+        feeConfig: mintInfos[mintBId].feeConfig ? toFeeConfig(mintInfos[mintBId].feeConfig) : undefined,
       },
     });
 
@@ -438,7 +456,7 @@ export default class CpmmModule extends ModuleBase {
       observationId: getPdaObservationId(poolData.programId, new PublicKey(poolId)).publicKey.toBase58(),
     };
 
-    // Crea il computeData direttamente qui senza bisogno di chiamare toComputePoolInfos
+    // Create computeData directly without needing to call toComputePoolInfos
     const computeData: CpmmComputeData = {
       ...rpcData,
       id: new PublicKey(poolId),
