@@ -73,17 +73,47 @@ async function init() {
     slippage: 0.001, // range: 1 ~ 0.0001, means 100% ~ 0.01%
   });
 
+  console.log(`\n----- SWAP CALCULATION RESULTS -----`);
+  console.log(`From: ${mintIn.symbol || mintIn.address}`);
+  console.log(`To: ${mintOut.symbol || mintOut.address}`);
   console.log(
-    `computed swap ${new Decimal(amountIn)
-      .div(10 ** mintIn.decimals)
-      .toDecimalPlaces(mintIn.decimals)
-      .toString()} ${mintIn.symbol || mintIn.address} to ${new Decimal(out.amountOut.toString())
-      .div(10 ** mintOut.decimals)
-      .toDecimalPlaces(mintOut.decimals)
-      .toString()} ${mintOut.symbol || mintOut.address}, minimum amount out ${new Decimal(out.minAmountOut.toString())
-      .div(10 ** mintOut.decimals)
-      .toDecimalPlaces(mintOut.decimals)} ${mintOut.symbol || mintOut.address}`,
+    `\nInput Amount: ${new Decimal(amountIn).div(10 ** mintIn.decimals).toFixed(mintIn.decimals)} ${
+      mintIn.symbol || mintIn.address
+    }`,
   );
+
+  console.log(
+    `\nOutput Amount: ${new Decimal(out.amountOut.toString()).div(10 ** mintOut.decimals).toFixed(mintOut.decimals)} ${
+      mintOut.symbol || mintOut.address
+    }`,
+  );
+
+  console.log(
+    `Minimum Output (with slippage): ${new Decimal(out.minAmountOut.toString())
+      .div(10 ** mintOut.decimals)
+      .toFixed(mintOut.decimals)} ${mintOut.symbol || mintOut.address}`,
+  );
+
+  console.log(
+    `\nFee Amount: ${new Decimal(out.fee.toString()).div(10 ** mintIn.decimals).toFixed(mintIn.decimals)} ${
+      mintIn.symbol || mintIn.address
+    }`,
+  );
+
+  console.log(
+    `\nCurrent Pool Price: 1 ${baseIn ? "token A" : "token B"} = ${out.currentPrice.toFixed(6)} ${
+      baseIn ? "token B" : "token A"
+    }`,
+  );
+
+  console.log(
+    `Execution Price: 1 ${mintIn.symbol || "input token"} = ${out.executionPrice.toFixed(6)} ${
+      mintOut.symbol || "output token"
+    }`,
+  );
+
+  console.log(`Price Impact: ${out.priceImpact.mul(100).toFixed(4)}%`);
+  console.log(`------------------------------------`);
 }
 
 init();
