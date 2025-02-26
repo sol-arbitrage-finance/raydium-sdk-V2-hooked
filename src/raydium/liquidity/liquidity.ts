@@ -19,11 +19,13 @@ import {
   createAssociatedLedgerAccountInstruction, FARM_PROGRAM_TO_VERSION, FarmLedger, getAssociatedLedgerAccount,
   getFarmLedgerLayout, makeWithdrawInstructionV3, makeWithdrawInstructionV5, makeWithdrawInstructionV6,
 } from "../../raydium/farm";
+import { getLiquidityAssociatedAuthority } from "../../raydium/liquidity";
 import { generatePubKey } from "../account";
 import Account from "../account/account";
 import { ClmmInstrument } from "../clmm/instrument";
 import { makeCreateMarketInstruction, MarketExtInfo } from "../marketV2";
 import ModuleBase, { ModuleBaseProps } from "../moduleBase";
+import { Market, MARKET_STATE_LAYOUT_V3 } from "../serum";
 import { toToken } from "../token";
 import { ComputeBudgetConfig } from "../type";
 
@@ -1345,14 +1347,68 @@ export default class LiquidityModule extends ModuleBase {
     return (await this.getRpcPoolInfos([poolId]))[poolId];
   }
 
+  async buildPoolKeysFromAccountsData({
+    poolId,
+    poolInfo,
+    poolRpcData,
+    marketId,
+    marketAccountData,
+  }: {
+    poolId: string;
+    poolInfo: ComputeAmountOutParam["poolInfo"];
+    poolRpcData: AmmRpcData;
+    marketId: string;
+    marketAccountData: AccountInfo<Buffer>;
+  }): Promise<AmmV4Keys> {
+    // Estrai i dati di mercato direttamente dall'account fornito
+    const itemMarketInfo = MARKET_STATE_LAYOUT_V3.decode(marketAccountData.data);
+    const marketData = {
+      marketId: marketId,
+      marketProgramId: marketAccountData.owner.toString(),
+      marketAuthority: Market.getAssociatedAuthority({
+        programId: marketAccountData.owner,
+        marketId: new PublicKey(marketId),
+      }).publicKey.toString(),
+      marketBaseVault: itemMarketInfo.baseVault.toString(),
+      marketQuoteVault: itemMarketInfo.quoteVault.toString(),
+      marketBids: itemMarketInfo.bids.toString(),
+      marketAsks: itemMarketInfo.asks.toString(),
+      marketEventQueue: itemMarketInfo.eventQueue.toString(),
+    };
+
+    // Crea le AmmV4Keys usando i dati forniti
+    const ammKeys: AmmV4Keys = {
+      programId: poolInfo.programId,
+      id: poolId,
+      mintA: poolInfo.mintA,
+      mintB: poolInfo.mintB,
+      openTime: String(poolInfo.openTime),
+      vault: {
+        A: poolRpcData.baseVault.toBase58(),
+        B: poolRpcData.quoteVault.toBase58(),
+      },
+      authority: getLiquidityAssociatedAuthority({
+        programId: new PublicKey(poolInfo.programId),
+      }).publicKey.toString(),
+      openOrders: poolRpcData.openOrders.toBase58(),
+      targetOrders: poolRpcData.targetOrders.toBase58(),
+      mintLp: poolInfo.lpMint,
+      ...marketData,
+    };
+
+    return ammKeys;
+  }
+
   /* This function use already available account data to build poolInfo */
-  public async getPoolInfoFromAccountsData({
+  public async buildPoolInfoFromAccountsData({
     poolId,
     poolAccountData,
     baseVaultId,
     baseVaultAccountData,
     quoteVaultId,
     quoteVaultAccountData,
+    marketId,
+    marketAccountData,
   }: {
     poolId: string;
     poolAccountData: AccountInfo<Buffer>;
@@ -1360,6 +1416,8 @@ export default class LiquidityModule extends ModuleBase {
     baseVaultAccountData: AccountInfo<Buffer>;
     quoteVaultId: string;
     quoteVaultAccountData: AccountInfo<Buffer>;
+    marketId: string;
+    marketAccountData: AccountInfo<Buffer>;
   }): Promise<{
     poolRpcData: AmmRpcData;
     poolInfo: ComputeAmountOutParam["poolInfo"];
@@ -1398,15 +1456,18 @@ export default class LiquidityModule extends ModuleBase {
     const computeData = toAmmComputePoolInfo(returnData);
     const poolInfo = computeData[poolId];
 
-    const allKeys = await this.scope.tradeV2.computePoolToPoolKeys({
-      pools: [poolInfo],
-      ammRpcData: returnData,
+    const poolKeys = await this.buildPoolKeysFromAccountsData({
+      poolId,
+      poolInfo,
+      poolRpcData: returnData[poolId],
+      marketId,
+      marketAccountData,
     });
 
     return {
       poolRpcData: returnData[poolId],
       poolInfo,
-      poolKeys: allKeys[0] as AmmV4Keys | AmmV5Keys,
+      poolKeys,
     };
   }
 
