@@ -195,7 +195,7 @@ export class Raydium {
     return this;
   }
   get connection(): Connection {
-    if (!this._connection) throw new Error(EMPTY_CONNECTION);
+    // if (!this._connection) throw new Error(EMPTY_CONNECTION);
     return this._connection;
   }
   public setConnection(connection: Connection): Raydium {

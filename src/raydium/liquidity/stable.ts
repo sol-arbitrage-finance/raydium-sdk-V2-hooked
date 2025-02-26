@@ -301,7 +301,7 @@ export function getStablePrice(
 }
 
 export class StableLayout {
-  private readonly connection: Connection;
+  private readonly connection?: Connection;
   private _layoutData: StableModelLayout = {
     accountType: 0,
     status: 0,
