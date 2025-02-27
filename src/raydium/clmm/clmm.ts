@@ -1,64 +1,41 @@
-import { PublicKey } from "@solana/web3.js";
+import {
+  AccountLayout, getTransferFeeConfig, NATIVE_MINT, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, unpackMint,
+} from "@solana/spl-token";
+import { AccountInfo, Connection, PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import Decimal from "decimal.js";
-import { ApiV3PoolInfoConcentratedItem, ClmmKeys } from "../../api/type";
+
 import {
-  CLMM_LOCK_AUTH_ID,
-  CLMM_LOCK_PROGRAM_ID,
-  CLMM_PROGRAM_ID,
-  InstructionType,
-  WSOLMint,
-  fetchMultipleMintInfos,
-  getATAAddress,
-  getMultipleAccountsInfoWithCustomFlags,
+  CLMM_LOCK_AUTH_ID, CLMM_LOCK_PROGRAM_ID, CLMM_PROGRAM_ID, fetchMultipleMintInfos, getATAAddress,
+  getMultipleAccountsInfoWithCustomFlags, InstructionType, WSOLMint,
 } from "@/common";
-import { AccountLayout, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { MakeMultiTxData, MakeTxData } from "@/common/txTool/txTool";
 import { TxVersion } from "@/common/txTool/txType";
+
+import { ApiV3PoolInfoConcentratedItem, ClmmKeys } from "../../api/type";
 import { toApiV3Token, toFeeConfig } from "../../raydium/token/utils";
 import { ComputeBudgetConfig, ReturnTypeFetchMultipleMintInfos, TxTipConfig } from "../../raydium/type";
+import { TickArrayBitmapExtensionLayout, TickArrayLayout } from "../clmm/layout";
+import { getCpLockPda, getCreatePoolKeys, getPdaObservationId, getPdaPoolAuthority } from "../cpmm/pda";
 import ModuleBase, { ModuleBaseProps } from "../moduleBase";
 import { MakeTransaction } from "../type";
+
 import { ClmmInstrument } from "./instrument";
 import { ClmmConfigLayout, ClmmPositionLayout, OperationLayout, PoolInfoLayout, PositionInfoLayout } from "./layout";
 import {
-  ClmmRpcData,
-  ClosePositionExtInfo,
-  CollectRewardParams,
-  CollectRewardsParams,
-  ComputeClmmPoolInfo,
-  CreateConcentratedPool,
-  DecreaseLiquidity,
-  HarvestAllRewardsParams,
-  HarvestLockPosition,
-  IncreasePositionFromBase,
-  IncreasePositionFromLiquidity,
-  InitRewardExtInfo,
-  InitRewardParams,
-  InitRewardsParams,
-  LockPosition,
-  ManipulateLiquidityExtInfo,
-  OpenPositionFromBase,
-  OpenPositionFromBaseExtInfo,
-  OpenPositionFromLiquidity,
-  OpenPositionFromLiquidityExtInfo,
-  ReturnTypeFetchMultiplePoolTickArrays,
-  SetRewardParams,
-  SetRewardsParams,
-  ClmmLockAddress,
+  ClmmLockAddress, ClmmRpcData, ClosePositionExtInfo, CollectRewardParams, CollectRewardsParams, ComputeClmmPoolInfo,
+  CreateConcentratedPool, DecreaseLiquidity, HarvestAllRewardsParams, HarvestLockPosition, IncreasePositionFromBase,
+  IncreasePositionFromLiquidity, InitRewardExtInfo, InitRewardParams, InitRewardsParams, LockPosition,
+  ManipulateLiquidityExtInfo, OpenPositionFromBase, OpenPositionFromBaseExtInfo, OpenPositionFromLiquidity,
+  OpenPositionFromLiquidityExtInfo, ReturnTypeFetchMultiplePoolTickArrays, SetRewardParams, SetRewardsParams,
 } from "./type";
 import { MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64, mockV3CreatePoolInfo, ZERO } from "./utils/constants";
 import { MathUtil, SqrtPriceMath } from "./utils/math";
 import {
-  getPdaOperationAccount,
-  getPdaPersonalPositionAddress,
-  getPdaLockClPositionIdV2,
-  getPdaTickArrayAddress,
-  getPdaProtocolPositionAddress,
-  getPdaExBitmapAccount,
-  getPdaMintExAccount,
+  getPdaExBitmapAccount, getPdaLockClPositionIdV2, getPdaMintExAccount, getPdaOperationAccount,
+  getPdaPersonalPositionAddress, getPdaProtocolPositionAddress, getPdaTickArrayAddress,
 } from "./utils/pda";
-import { PoolUtils, clmmComputeInfoToApiInfo } from "./utils/pool";
+import { clmmComputeInfoToApiInfo, PoolUtils } from "./utils/pool";
 import { TickUtils } from "./utils/tick";
 
 export class Clmm extends ModuleBase {
@@ -1868,6 +1845,183 @@ export class Clmm extends ModuleBase {
     });
 
     return allPosition;
+  }
+
+  public async buildPoolInfoFromAccountsData({
+    programId,
+    poolId,
+    poolAccountData,
+    vaultAId,
+    vaultAAccountData,
+    vaultBId,
+    vaultBAccountData,
+    observationId,
+    mintAId,
+    mintAAccountData,
+    mintBId,
+    mintBAccountData,
+    configId,
+    configAccountData,
+    exBitmapAccountId,
+    exBitmapAccountData,
+  }: {
+    programId: PublicKey | string;
+    poolId: PublicKey | string;
+    poolAccountData: AccountInfo<Buffer>;
+    vaultAId: PublicKey | string;
+    vaultAAccountData: AccountInfo<Buffer>;
+    vaultBId: PublicKey | string;
+    vaultBAccountData: AccountInfo<Buffer>;
+    observationId: PublicKey | string;
+    mintAId: PublicKey | string;
+    mintAAccountData: AccountInfo<Buffer>;
+    mintBId: PublicKey | string;
+    mintBAccountData: AccountInfo<Buffer>;
+    configId: PublicKey | string;
+    configAccountData: AccountInfo<Buffer>;
+    exBitmapAccountId: PublicKey | string;
+    exBitmapAccountData: AccountInfo<Buffer>;
+  }): Promise<{
+    poolInfo: ApiV3PoolInfoConcentratedItem;
+    poolKeys: ClmmKeys;
+    computePoolInfo: ComputeClmmPoolInfo;
+  }> {
+    const programIdPubkey = new PublicKey(programId);
+    const poolIdPubkey = new PublicKey(poolId);
+
+    // Parse account data
+    const rpcData = PoolInfoLayout.decode(poolAccountData.data);
+
+    // Get mint info by unpacking the mint accounts
+    const mintAData = unpackMint(new PublicKey(mintAId), mintAAccountData, mintAAccountData.owner);
+    const mintBData = unpackMint(new PublicKey(mintBId), mintBAccountData, mintBAccountData.owner);
+
+    // Create local mintInfos structure that would normally come from fetchMultipleMintInfos
+    const mintInfos: ReturnTypeFetchMultipleMintInfos = {};
+    mintInfos[mintAId.toString()] = {
+      ...mintAData,
+      programId: mintAAccountData.owner,
+      feeConfig: getTransferFeeConfig(mintAData) ?? undefined,
+    };
+    mintInfos[mintBId.toString()] = {
+      ...mintBData,
+      programId: mintBAccountData.owner,
+      feeConfig: getTransferFeeConfig(mintBData) ?? undefined,
+    };
+
+    // Add default key mapping in case one of the tokens is WSOL
+    if (mintAId.toString() === WSOLMint.toBase58() || mintBId.toString() === WSOLMint.toBase58()) {
+      mintInfos[PublicKey.default.toBase58()] = mintInfos[WSOLMint.toBase58()];
+    }
+
+    // Parse vault amounts
+    const vaultAAmount = AccountLayout.decode(vaultAAccountData.data).amount;
+    const vaultBAmount = AccountLayout.decode(vaultBAccountData.data).amount;
+
+    // Parse config data
+    const configInfo = ClmmConfigLayout.decode(configAccountData.data);
+
+    // Parse exBitmap data
+    const exBitmapInfo = TickArrayBitmapExtensionLayout.decode(exBitmapAccountData.data);
+
+    // Calculate current price
+    const currentPrice = SqrtPriceMath.sqrtPriceX64ToPrice(
+      rpcData.sqrtPriceX64,
+      rpcData.mintDecimalsA,
+      rpcData.mintDecimalsB,
+    );
+
+    // Create API tokens
+    const mintA = toApiV3Token({
+      address: mintAId.toString(),
+      decimals: rpcData.mintDecimalsA,
+      programId: mintInfos[mintAId.toString()].programId.toBase58(),
+      extensions: {
+        feeConfig: mintInfos[mintAId.toString()]?.feeConfig
+          ? toFeeConfig(mintInfos[mintAId.toString()]?.feeConfig)
+          : undefined,
+      },
+    });
+
+    const mintB = toApiV3Token({
+      address: mintBId.toString(),
+      decimals: rpcData.mintDecimalsB,
+      programId: mintInfos[mintBId.toString()].programId.toBase58(),
+      extensions: {
+        feeConfig: mintInfos[mintBId.toString()]?.feeConfig
+          ? toFeeConfig(mintInfos[mintBId.toString()]?.feeConfig)
+          : undefined,
+      },
+    });
+
+    // Create AmmConfig structure
+    const ammConfig = {
+      id: new PublicKey(configId),
+      index: configInfo.index,
+      protocolFeeRate: configInfo.protocolFeeRate,
+      tradeFeeRate: configInfo.tradeFeeRate,
+      tickSpacing: configInfo.tickSpacing,
+      fundFeeRate: 0,
+      fundOwner: "",
+      description: "",
+      defaultRange: 0,
+      defaultRangePoint: [],
+    };
+
+    // Build ComputeClmmPoolInfo
+    const computePoolInfo: ComputeClmmPoolInfo = {
+      ...rpcData,
+      id: poolIdPubkey,
+      version: 6,
+      programId: programIdPubkey,
+      mintA,
+      mintB,
+      ammConfig,
+      currentPrice,
+      exBitmapAccount: new PublicKey(exBitmapAccountId),
+      exBitmapInfo,
+      startTime: rpcData.startTime.toNumber(),
+      observationId: new PublicKey(observationId),
+      rewardInfos: rpcData.rewardInfos.filter((r) => !r.tokenVault.equals(PublicKey.default)),
+    };
+
+    // Convert compute info to API info
+    const poolInfo = clmmComputeInfoToApiInfo(computePoolInfo);
+    // Set vault amounts that were missing in the computed info
+    poolInfo.mintAmountA = Number(vaultAAmount.toString());
+    poolInfo.mintAmountB = Number(vaultBAmount.toString());
+
+    // Build pool keys
+    const poolKeys: ClmmKeys = {
+      ...computePoolInfo,
+      exBitmapAccount: computePoolInfo.exBitmapAccount.toBase58(),
+      observationId: computePoolInfo.observationId.toBase58(),
+      id: poolId.toString(),
+      programId: programId.toString(),
+      openTime: rpcData.startTime.toString(),
+      vault: {
+        A: vaultAId.toString(),
+        B: vaultBId.toString(),
+      },
+      config: poolInfo.config,
+      rewardInfos: computePoolInfo.rewardInfos
+        .filter((r) => !r.tokenVault.equals(PublicKey.default))
+        .map((r) => ({
+          mint: toApiV3Token({
+            address: r.tokenMint.toBase58(),
+            programId: TOKEN_PROGRAM_ID.toBase58(),
+            decimals: 10,
+          }),
+          vault: r.tokenVault.toBase58(),
+        })),
+    };
+    // // Fetch tick data - this part still needs RPC calls as tick data is dynamic
+    // const tickData = await PoolUtils.fetchMultiplePoolTickArrays({
+    //   connection: connection,
+    //   poolKeys: [computePoolInfo],
+    // });
+
+    return { poolInfo, poolKeys, computePoolInfo };
   }
 
   public async getRpcClmmPoolInfo({ poolId }: { poolId: string | PublicKey }): Promise<ClmmRpcData> {
