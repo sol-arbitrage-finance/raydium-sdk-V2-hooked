@@ -1177,7 +1177,7 @@ export default class CpmmModule extends ModuleBase {
       minAmountOut,
       executionPrice,
       fee: swapResult.tradeFee,
-      priceImpact: pool.poolPrice.sub(executionPrice).div(pool.poolPrice),
+      priceImpact: pool.poolPrice.sub(executionPrice).div(pool.poolPrice).mul(100),
     };
   }
 
