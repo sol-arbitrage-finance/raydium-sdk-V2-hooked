@@ -1164,9 +1164,14 @@ export default class CpmmModule extends ModuleBase {
       pool.configInfo.tradeFeeRate,
     );
 
-    const executionPrice = new Decimal(swapResult.destinationAmountSwapped.toString()).div(
-      swapResult.sourceAmountSwapped.toString(),
-    );
+    // Ottieni i decimali corretti delle valute
+    const inputDecimals = isBaseIn ? pool.mintA.decimals : pool.mintB.decimals;
+    const outputDecimals = isBaseIn ? pool.mintB.decimals : pool.mintA.decimals;
+
+    // Calcola executionPrice tenendo conto dei decimali
+    const executionPrice = new Decimal(swapResult.destinationAmountSwapped.toString())
+      .div(10 ** outputDecimals)
+      .div(new Decimal(swapResult.sourceAmountSwapped.toString()).div(10 ** inputDecimals));
 
     const minAmountOut = swapResult.destinationAmountSwapped.mul(new BN((1 - slippage) * 10000)).div(new BN(10000));
 
@@ -1177,7 +1182,7 @@ export default class CpmmModule extends ModuleBase {
       minAmountOut,
       executionPrice,
       fee: swapResult.tradeFee,
-      priceImpact: pool.poolPrice.sub(executionPrice).div(pool.poolPrice).mul(100),
+      priceImpact: pool.poolPrice.sub(executionPrice).div(pool.poolPrice),
     };
   }
 
