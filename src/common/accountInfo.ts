@@ -99,7 +99,7 @@ export async function getMultipleAccountsInfoWithCustomFlags<T extends { pubkey:
   publicKeysWithCustomFlag: T[],
   config?: GetMultipleAccountsInfoConfig,
 ): Promise<({ accountInfo: AccountInfo<Buffer> | null } & T)[]> {
-  console.log("getMultipleAccountsInfoWithCustomFlags", publicKeysWithCustomFlag);
+  //console.log("getMultipleAccountsInfoWithCustomFlags", publicKeysWithCustomFlag);
   const multipleAccountsInfo = await getMultipleAccountsInfo(
     connection,
     publicKeysWithCustomFlag.map((o) => o.pubkey),
